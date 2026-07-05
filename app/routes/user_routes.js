@@ -82,4 +82,23 @@ router.get('/me', requireToken, (req, res, next) => {
 		.catch(next)
 })
 
+// GET /settings — return user's synced settings (keybinds, ctrlBinds, etc.)
+router.get('/settings', requireToken, (req, res, next) => {
+	User.findById(req.user.id)
+		.then((user) => res.json({ settings: user.settings || {} }))
+		.catch(next)
+})
+
+// PATCH /settings — shallow-merge top-level keys into user settings
+router.patch('/settings', requireToken, (req, res, next) => {
+	User.findById(req.user.id)
+		.then((user) => {
+			user.settings = { ...(user.settings || {}), ...req.body.settings }
+			user.markModified('settings')
+			return user.save()
+		})
+		.then((user) => res.json({ settings: user.settings }))
+		.catch(next)
+})
+
 module.exports = router

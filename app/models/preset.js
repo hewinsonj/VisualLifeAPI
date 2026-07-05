@@ -23,6 +23,26 @@ const presetSchema = new mongoose.Schema(
 			type: mongoose.Schema.Types.Mixed,
 			default: {},
 		},
+		// Camera position/orientation/mode snapshot
+		camera: {
+			type: mongoose.Schema.Types.Mixed,
+			default: null,
+		},
+		// Global scene state: colors/palette, layer visibility, brightness, looks, etc.
+		global: {
+			type: mongoose.Schema.Types.Mixed,
+			default: {},
+		},
+		// World-specific state (lava, skull, plant count, seasons, etc.)
+		worldState: {
+			type: mongoose.Schema.Types.Mixed,
+			default: null,
+		},
+		scene: {
+			type: String,
+			enum: ['geogalaxy', 'jzone', '70room', 'corridor'],
+			default: 'geogalaxy',
+		},
 		isPublic: {
 			type: Boolean,
 			default: false,

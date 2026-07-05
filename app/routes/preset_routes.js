@@ -50,7 +50,7 @@ router.get('/presets/:id', requireToken, (req, res, next) => {
 
 // POST /presets — create a new preset
 router.post('/presets', requireToken, requireSubscription, (req, res, next) => {
-	const { name, patchOrder, params, isPublic } = req.body.preset
+	const { name, patchOrder, params, camera, global, worldState, scene, isPublic } = req.body.preset
 
 	// Enforce trial save limit
 	const checkLimit = () => {
@@ -71,6 +71,10 @@ router.post('/presets', requireToken, requireSubscription, (req, res, next) => {
 				name,
 				patchOrder: patchOrder || [],
 				params: params || {},
+				camera: camera ?? null,
+				global: global || {},
+				worldState: worldState ?? null,
+				scene: scene || 'geogalaxy',
 				isPublic: !!isPublic,
 			})
 		)
@@ -84,10 +88,14 @@ router.patch('/presets/:id', requireToken, requireSubscription, (req, res, next)
 		.then(errors.handle404)
 		.then((preset) => {
 			errors.requireOwnership(req, preset)
-			const { name, patchOrder, params, isPublic } = req.body.preset || {}
+			const { name, patchOrder, params, camera, global, worldState, scene, isPublic } = req.body.preset || {}
 			if (name !== undefined) preset.name = name
 			if (patchOrder !== undefined) preset.patchOrder = patchOrder
 			if (params !== undefined) preset.params = params
+			if (camera !== undefined) { preset.camera = camera; preset.markModified('camera') }
+			if (global !== undefined) { preset.global = global; preset.markModified('global') }
+			if (worldState !== undefined) { preset.worldState = worldState; preset.markModified('worldState') }
+			if (scene !== undefined) preset.scene = scene
 			if (isPublic !== undefined) preset.isPublic = isPublic
 			return preset.save()
 		})
