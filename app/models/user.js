@@ -15,6 +15,22 @@ const userSchema = new mongoose.Schema(
 		},
 		token: String,
 
+		// Who's using it — collected at sign-up so we can reach beta users
+		// (e.g. send their login for the first non-beta release).
+		firstName: {
+			type: String,
+			trim: true,
+			maxlength: 40,
+			default: '',
+		},
+		lastInitial: {
+			type: String,
+			trim: true,
+			maxlength: 2,
+			uppercase: true,
+			default: '',
+		},
+
 		// Subscription
 		subscriptionStatus: {
 			type: String,

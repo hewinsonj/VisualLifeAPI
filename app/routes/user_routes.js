@@ -23,7 +23,12 @@ router.post('/sign-up', (req, res, next) => {
 			}
 		})
 		.then(() => bcrypt.hash(req.body.credentials.password, bcryptSaltRounds))
-		.then((hash) => ({ email: req.body.credentials.email, hashedPassword: hash }))
+		.then((hash) => ({
+			email: req.body.credentials.email,
+			hashedPassword: hash,
+			firstName: req.body.credentials.firstName || '',
+			lastInitial: req.body.credentials.lastInitial || '',
+		}))
 		.then((user) => User.create(user))
 		.then((user) => res.status(201).json({ user: user.toObject() }))
 		.catch(next)
@@ -43,6 +48,10 @@ router.post('/sign-in', (req, res, next) => {
 		.then((correctPassword) => {
 			if (!correctPassword) throw new errors.BadCredentialsError()
 			user.token = crypto.randomBytes(16).toString('hex')
+			// Backfill name for existing accounts created before we collected it
+			const { firstName, lastInitial } = req.body.credentials
+			if (firstName && !user.firstName) user.firstName = firstName
+			if (lastInitial && !user.lastInitial) user.lastInitial = lastInitial
 			return user.save()
 		})
 		.then((user) => res.status(200).json({ user: user.toObject() }))
