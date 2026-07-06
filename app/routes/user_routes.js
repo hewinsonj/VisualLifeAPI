@@ -96,7 +96,10 @@ router.patch('/profile', requireToken, (req, res, next) => {
 			if (lastInitial !== undefined) user.lastInitial = lastInitial
 			return user.save()
 		})
-		.then((user) => res.json({ user: user.toObject() }))
+		.then((user) => {
+			console.log(`[profile] saved name for ${user.email}: "${user.firstName}" "${user.lastInitial}"`)
+			res.json({ user: user.toObject() })
+		})
 		.catch(next)
 })
 
