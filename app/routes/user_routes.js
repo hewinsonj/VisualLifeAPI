@@ -48,10 +48,6 @@ router.post('/sign-in', (req, res, next) => {
 		.then((correctPassword) => {
 			if (!correctPassword) throw new errors.BadCredentialsError()
 			user.token = crypto.randomBytes(16).toString('hex')
-			// Backfill name for existing accounts created before we collected it
-			const { firstName, lastInitial } = req.body.credentials
-			if (firstName && !user.firstName) user.firstName = firstName
-			if (lastInitial && !user.lastInitial) user.lastInitial = lastInitial
 			return user.save()
 		})
 		.then((user) => res.status(200).json({ user: user.toObject() }))
@@ -87,6 +83,19 @@ router.patch('/change-password', requireToken, (req, res, next) => {
 // GET /me — return current user's public info including subscription status
 router.get('/me', requireToken, (req, res, next) => {
 	User.findById(req.user.id)
+		.then((user) => res.json({ user: user.toObject() }))
+		.catch(next)
+})
+
+// PATCH /profile — set the user's first name + last initial (collected post-login)
+router.patch('/profile', requireToken, (req, res, next) => {
+	const { firstName, lastInitial } = req.body.profile || {}
+	User.findById(req.user.id)
+		.then((user) => {
+			if (firstName !== undefined) user.firstName = firstName
+			if (lastInitial !== undefined) user.lastInitial = lastInitial
+			return user.save()
+		})
 		.then((user) => res.json({ user: user.toObject() }))
 		.catch(next)
 })
