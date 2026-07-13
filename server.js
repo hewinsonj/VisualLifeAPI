@@ -1,4 +1,5 @@
 require('dotenv').config()
+const Sentry = require('./instrument') // must load before express for auto-instrumentation
 
 const express = require('express')
 const mongoose = require('mongoose')
@@ -32,6 +33,14 @@ app.use(cors({
 	origin: process.env.CLIENT_ORIGIN || `http://localhost:${clientDevPort}`,
 }))
 
+// Health check for uptime monitors + Fly — unauthenticated, never rate-limited.
+// 200 when the DB is connected, 503 otherwise (so it reflects "can serve", not
+// just "process alive").
+app.get('/health', (req, res) => {
+	const dbUp = mongoose.connection.readyState === 1
+	res.status(dbUp ? 200 : 503).json({ ok: dbUp, db: dbUp ? 'up' : 'down', uptime: Math.round(process.uptime()) })
+})
+
 // Stripe webhook must receive raw body — mount BEFORE express.json() (and before
 // the global limiter, so Stripe's retries are never throttled).
 app.use('/stripe/webhook', stripeRoutes)
@@ -55,6 +64,10 @@ app.use(presetRoutes)
 app.use(adminRoutes)
 // Non-webhook stripe routes (e.g. POST /subscribe) after json parsing
 app.use(stripeRoutes)
+
+// Sentry captures route errors here (no-op until SENTRY_DSN is set), then the
+// custom handler still formats the client response.
+Sentry.setupExpressErrorHandler(app)
 
 app.use(errorHandler)
 
