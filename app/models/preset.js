@@ -51,4 +51,9 @@ const presetSchema = new mongoose.Schema(
 	{ timestamps: true }
 )
 
+// Indexes for the hot queries: list/count a user's presets by owner, and the
+// public gallery filtered by isPublic + sorted newest-first.
+presetSchema.index({ owner: 1 })
+presetSchema.index({ isPublic: 1, createdAt: -1 })
+
 module.exports = mongoose.model('Preset', presetSchema)
