@@ -29,8 +29,16 @@ const clientDevPort = 5173
 // Behind Fly's proxy — trust the first hop so rate limiting sees the real client IP.
 app.set('trust proxy', 1)
 
+// CORS locked to an allowlist. CLIENT_ORIGIN may be comma-separated for multiple
+// origins (prod + previews). Requests with no Origin header (curl, health checks,
+// Stripe webhooks) are allowed; unknown browser origins are rejected.
+const allowedOrigins = (process.env.CLIENT_ORIGIN || `http://localhost:${clientDevPort}`)
+	.split(',').map((o) => o.trim()).filter(Boolean)
 app.use(cors({
-	origin: process.env.CLIENT_ORIGIN || `http://localhost:${clientDevPort}`,
+	origin(origin, cb) {
+		if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
+		cb(new Error(`Origin ${origin} not allowed by CORS`))
+	},
 }))
 
 // Health check for uptime monitors + Fly — unauthenticated, never rate-limited.
