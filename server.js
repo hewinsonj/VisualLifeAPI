@@ -15,6 +15,7 @@ const userRoutes = require('./app/routes/user_routes')
 const presetRoutes = require('./app/routes/preset_routes')
 const stripeRoutes = require('./app/routes/stripe_routes')
 const adminRoutes = require('./app/routes/admin_routes')
+const { globalLimiter, authLimiter, publicLimiter } = require('./lib/rate_limits')
 
 mongoose.connect(db)
 	.then(() => console.log('MongoDB connected:', db))
@@ -24,12 +25,19 @@ const app = express()
 const port = process.env.PORT || 8000
 const clientDevPort = 5173
 
+// Behind Fly's proxy — trust the first hop so rate limiting sees the real client IP.
+app.set('trust proxy', 1)
+
 app.use(cors({
 	origin: process.env.CLIENT_ORIGIN || `http://localhost:${clientDevPort}`,
 }))
 
-// Stripe webhook must receive raw body — mount BEFORE express.json()
+// Stripe webhook must receive raw body — mount BEFORE express.json() (and before
+// the global limiter, so Stripe's retries are never throttled).
 app.use('/stripe/webhook', stripeRoutes)
+
+// Broad rate limit on everything else.
+app.use(globalLimiter)
 
 app.use(replaceToken)
 app.use(auth)
@@ -37,6 +45,10 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(removeBlankFields)
 app.use(requestLogger)
+
+// Tighter caps on abuse-prone endpoints (registered before their routes).
+app.use(['/sign-in', '/sign-up', '/sign-out', '/change-password'], authLimiter)
+app.use('/presets/public', publicLimiter)
 
 app.use(userRoutes)
 app.use(presetRoutes)
