@@ -5,33 +5,52 @@ const bcrypt = require('bcrypt')
 
 const errors = require('../../lib/custom_errors')
 const User = require('../models/user')
+const InviteCode = require('../models/invite_code')
 
 const bcryptSaltRounds = 10
 const requireToken = passport.authenticate('bearer', { session: false })
 const router = express.Router()
 
-// POST /sign-up
-router.post('/sign-up', (req, res, next) => {
-	Promise.resolve(req.body.credentials)
-		.then((credentials) => {
-			if (
-				!credentials ||
-				!credentials.password ||
-				credentials.password !== credentials.password_confirmation
-			) {
-				throw new errors.BadParamsError()
+// POST /sign-up — requires a valid invite code unless SIGNUP_MODE=open
+router.post('/sign-up', async (req, res, next) => {
+	try {
+		const creds = req.body.credentials || {}
+		if (!creds.email || !creds.password || creds.password !== creds.password_confirmation) {
+			return res.status(422).json({ error: 'Email and matching passwords are required' })
+		}
+
+		// Invite gate — the fly-by admin console mints these codes.
+		let invite = null
+		if (process.env.SIGNUP_MODE !== 'open') {
+			const code = String(creds.inviteCode || '').trim().toUpperCase()
+			invite = code ? await InviteCode.findOne({ code }) : null
+			if (!invite || !invite.isUsable()) {
+				return res.status(403).json({ error: 'Invalid or already-used invite code' })
 			}
-		})
-		.then(() => bcrypt.hash(req.body.credentials.password, bcryptSaltRounds))
-		.then((hash) => ({
-			email: req.body.credentials.email,
+		}
+
+		const hash = await bcrypt.hash(creds.password, bcryptSaltRounds)
+		const user = await User.create({
+			email: creds.email,
 			hashedPassword: hash,
-			firstName: req.body.credentials.firstName || '',
-			lastInitial: req.body.credentials.lastInitial || '',
-		}))
-		.then((user) => User.create(user))
-		.then((user) => res.status(201).json({ user: user.toObject() }))
-		.catch(next)
+			firstName: creds.firstName || '',
+			lastInitial: creds.lastInitial || '',
+		})
+
+		if (invite) {
+			invite.uses += 1
+			invite.usedBy.push({ email: user.email, at: new Date() })
+			await invite.save()
+		}
+
+		res.status(201).json({ user: user.toObject() })
+	} catch (err) {
+		// Duplicate email → friendly 422 instead of a raw Mongo error
+		if (err && err.code === 11000) {
+			return res.status(422).json({ error: 'An account with that email already exists' })
+		}
+		next(err)
+	}
 })
 
 // POST /sign-in

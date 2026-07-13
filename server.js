@@ -14,6 +14,7 @@ const removeBlankFields = require('./lib/remove_blank_fields')
 const userRoutes = require('./app/routes/user_routes')
 const presetRoutes = require('./app/routes/preset_routes')
 const stripeRoutes = require('./app/routes/stripe_routes')
+const adminRoutes = require('./app/routes/admin_routes')
 
 mongoose.connect(db)
 	.then(() => console.log('MongoDB connected:', db))
@@ -39,6 +40,7 @@ app.use(requestLogger)
 
 app.use(userRoutes)
 app.use(presetRoutes)
+app.use(adminRoutes)
 // Non-webhook stripe routes (e.g. POST /subscribe) after json parsing
 app.use(stripeRoutes)
 
