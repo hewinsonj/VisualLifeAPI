@@ -6,6 +6,7 @@ const bcrypt = require('bcrypt')
 const errors = require('../../lib/custom_errors')
 const User = require('../models/user')
 const InviteCode = require('../models/invite_code')
+const { sendWelcomeEmail } = require('../../lib/email')
 
 const bcryptSaltRounds = 10
 const requireToken = passport.authenticate('bearer', { session: false })
@@ -42,6 +43,9 @@ router.post('/sign-up', async (req, res, next) => {
 			invite.usedBy.push({ email: user.email, at: new Date() })
 			await invite.save()
 		}
+
+		// Welcome email — fire-and-forget so it never blocks or fails signup.
+		sendWelcomeEmail(user.email, user.firstName)
 
 		res.status(201).json({ user: user.toObject() })
 	} catch (err) {
