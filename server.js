@@ -18,8 +18,10 @@ const stripeRoutes = require('./app/routes/stripe_routes')
 const adminRoutes = require('./app/routes/admin_routes')
 const { globalLimiter, authLimiter, publicLimiter } = require('./lib/rate_limits')
 
+// Log only the host — never the credentials embedded in the URI.
+const dbHost = (db.match(/@([^/?]+)/) || db.match(/\/\/([^/?]+)/) || [])[1] || 'database'
 mongoose.connect(db)
-	.then(() => console.log('MongoDB connected:', db))
+	.then(() => console.log('MongoDB connected:', dbHost))
 	.catch((err) => console.error('MongoDB connection error:', err))
 
 const app = express()
