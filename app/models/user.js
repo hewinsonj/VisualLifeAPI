@@ -14,6 +14,14 @@ const userSchema = new mongoose.Schema(
 			required: true,
 		},
 		token: String,
+		// Multiple active sessions — one token per signed-in device, so a laptop
+		// and phone can be logged in at once. Auth matches any token in here; the
+		// legacy single `token` above is kept only as a fallback for sessions
+		// created before multi-session existed.
+		tokens: {
+			type: [String],
+			default: [],
+		},
 
 		// Grants access to the /admin console (mint invite codes, etc.)
 		isAdmin: {
@@ -65,6 +73,7 @@ const userSchema = new mongoose.Schema(
 		toObject: {
 			transform: (_doc, user) => {
 				delete user.hashedPassword
+				delete user.tokens   // never expose the full session-token list
 				return user
 			},
 		},

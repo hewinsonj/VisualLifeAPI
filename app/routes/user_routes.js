@@ -70,7 +70,14 @@ router.post('/sign-in', (req, res, next) => {
 		})
 		.then((correctPassword) => {
 			if (!correctPassword) throw new errors.BadCredentialsError()
-			user.token = crypto.randomBytes(16).toString('hex')
+			// Multi-session: add a token for this device, keeping other devices'
+			// tokens (and migrating any pre-existing single token into the set).
+			const newToken = crypto.randomBytes(16).toString('hex')
+			const set = new Set(user.tokens || [])
+			if (user.token) set.add(user.token)
+			set.add(newToken)
+			user.tokens = [...set].slice(-10)   // cap: 10 most recent sessions
+			user.token = newToken               // returned to this client + legacy fallback
 			return user.save()
 		})
 		.then((user) => res.status(200).json({ user: user.toObject() }))
@@ -79,7 +86,10 @@ router.post('/sign-in', (req, res, next) => {
 
 // DELETE /sign-out
 router.delete('/sign-out', requireToken, (req, res, next) => {
-	req.user.token = crypto.randomBytes(16).toString('hex')
+	// Log out only this device: drop its token, leave other sessions intact.
+	const tok = (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
+	req.user.tokens = (req.user.tokens || []).filter((t) => t !== tok)
+	if (req.user.token === tok) req.user.token = crypto.randomBytes(16).toString('hex')
 	req.user.save()
 		.then(() => res.sendStatus(204))
 		.catch(next)
@@ -97,6 +107,10 @@ router.patch('/change-password', requireToken, (req, res, next) => {
 		.then(() => bcrypt.hash(req.body.passwords.new, bcryptSaltRounds))
 		.then((hash) => {
 			user.hashedPassword = hash
+			// Password change invalidates all other sessions; keep only this device.
+			const tok = (req.headers.authorization || '').replace(/^Bearer\s+/i, '')
+			user.tokens = tok ? [tok] : []
+			user.token = tok || ''
 			return user.save()
 		})
 		.then(() => res.sendStatus(204))
