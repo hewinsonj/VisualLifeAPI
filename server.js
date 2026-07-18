@@ -66,7 +66,7 @@ app.use(removeBlankFields)
 app.use(requestLogger)
 
 // Tighter caps on abuse-prone endpoints (registered before their routes).
-app.use(['/sign-in', '/sign-up', '/sign-out', '/change-password'], authLimiter)
+app.use(['/sign-in', '/sign-up', '/sign-out', '/change-password', '/forgot-password', '/reset-password'], authLimiter)
 app.use('/presets/public', publicLimiter)
 
 app.use(userRoutes)

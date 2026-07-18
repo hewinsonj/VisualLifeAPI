@@ -23,6 +23,11 @@ const userSchema = new mongoose.Schema(
 			default: [],
 		},
 
+		// Password reset — a SHA-256 hash of the token emailed to the user (never the
+		// token itself, so a DB leak can't be used to reset anyone), plus its expiry.
+		resetPasswordTokenHash: { type: String, default: null },
+		resetPasswordExpires:   { type: Date,   default: null },
+
 		// Grants access to the /admin console (mint invite codes, etc.)
 		isAdmin: {
 			type: Boolean,

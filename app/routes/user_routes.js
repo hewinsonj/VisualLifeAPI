@@ -6,7 +6,12 @@ const bcrypt = require('bcrypt')
 const errors = require('../../lib/custom_errors')
 const User = require('../models/user')
 const InviteCode = require('../models/invite_code')
-const { sendWelcomeEmail } = require('../../lib/email')
+const { sendWelcomeEmail, sendPasswordResetEmail } = require('../../lib/email')
+
+// Where the emailed reset link points — first CLIENT_ORIGIN (prod), else localhost dev.
+const clientBase = () => (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',')[0].trim().replace(/\/$/, '')
+const sha256 = (v) => crypto.createHash('sha256').update(v).digest('hex')
+const RESET_TTL_MS = 60 * 60 * 1000 // 1 hour
 
 const bcryptSaltRounds = 10
 const requireToken = passport.authenticate('bearer', { session: false })
@@ -115,6 +120,57 @@ router.patch('/change-password', requireToken, (req, res, next) => {
 		})
 		.then(() => res.sendStatus(204))
 		.catch(next)
+})
+
+// POST /forgot-password — email a reset link. Always returns the same 200 whether or not
+// the address has an account, so it can't be used to discover which emails are registered.
+router.post('/forgot-password', async (req, res, next) => {
+	try {
+		const email = String((req.body || {}).email || '').trim().toLowerCase()
+		const generic = { message: 'If an account exists for that email, a reset link is on its way.' }
+		if (!email) return res.status(200).json(generic)
+
+		const user = await User.findOne({ email })
+		if (user) {
+			const token = crypto.randomBytes(32).toString('hex')   // emailed to the user
+			user.resetPasswordTokenHash = sha256(token)            // only the hash is stored
+			user.resetPasswordExpires = new Date(Date.now() + RESET_TTL_MS)
+			await user.save()
+			const resetUrl = `${clientBase()}/reset-password?token=${token}`
+			// Fire-and-forget — don't block the response or reveal send failures to the client.
+			sendPasswordResetEmail(user.email, user.firstName, resetUrl)
+		}
+		return res.status(200).json(generic)
+	} catch (err) {
+		next(err)
+	}
+})
+
+// POST /reset-password — consume a token, set a new password, sign every session out.
+router.post('/reset-password', async (req, res, next) => {
+	try {
+		const { token, password, password_confirmation } = req.body || {}
+		if (!token || !password || password !== password_confirmation) {
+			return res.status(422).json({ error: 'A valid token and matching passwords are required' })
+		}
+		const user = await User.findOne({
+			resetPasswordTokenHash: sha256(String(token)),
+			resetPasswordExpires: { $gt: new Date() },
+		})
+		if (!user) {
+			return res.status(400).json({ error: 'This reset link is invalid or has expired. Request a new one.' })
+		}
+		user.hashedPassword = await bcrypt.hash(password, bcryptSaltRounds)
+		user.resetPasswordTokenHash = null
+		user.resetPasswordExpires = null
+		// Reset invalidates every existing session — the user signs in fresh afterward.
+		user.tokens = []
+		user.token = ''
+		await user.save()
+		return res.sendStatus(204)
+	} catch (err) {
+		next(err)
+	}
 })
 
 // GET /me — return current user's public info including subscription status
