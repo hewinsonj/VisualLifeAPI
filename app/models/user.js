@@ -34,6 +34,13 @@ const userSchema = new mongoose.Schema(
 			default: false,
 		},
 
+		// Per-user unlock for the gated Corridor scene. Admins always have access;
+		// this grants it to specific non-admin users from the admin dashboard.
+		corridorAccess: {
+			type: Boolean,
+			default: false,
+		},
+
 		// Who's using it — collected at sign-up so we can reach beta users
 		// (e.g. send their login for the first non-beta release).
 		firstName: {
